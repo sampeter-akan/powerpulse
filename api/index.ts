@@ -34,6 +34,32 @@ const ai = apiKey
     })
   : null;
 
+// Production resilience helper: falls back to gemini-2.5-flash if 3.8 experiences transient capacity spikes
+async function generateWithFallback(params: { contents: any; config?: any }) {
+  if (!ai) throw new Error('Gemini API key is not configured');
+  const models = ['gemini-3.8-flash', 'gemini-2.5-flash'];
+  let lastErr: any = null;
+  for (const model of models) {
+    try {
+      return await ai.models.generateContent({
+        model,
+        contents: params.contents,
+        config: params.config,
+      });
+    } catch (err: any) {
+      lastErr = err;
+      const msg = err?.message || '';
+      const isCapacity = err?.status === 503 || msg.includes('high demand') || msg.includes('UNAVAILABLE');
+      if (isCapacity && model !== models[models.length - 1]) {
+        console.warn(`[AI] ${model} at capacity, failing over to backup model...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 const router = express.Router();
 
 // Health check endpoint
@@ -84,8 +110,7 @@ Analyze the image and return a strictly valid JSON object with these exact keys:
 
 Do not wrap in markdown quotes if possible, output pure JSON.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback({
       contents: {
         parts: [
           {
@@ -178,8 +203,7 @@ Generate a comprehensive, human-centered energy survival & grid-optimization pla
   "utilityGridBenefit": "string (brief note on how this household's load-shifting helps prevent local feeder transformer overloading in ${utilityName || 'the distribution network'})"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -249,8 +273,7 @@ Analyze this bill or token text thoroughly and output pure JSON:
   "recommendedAction": "string (clear next step for the customer)"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -322,8 +345,7 @@ Provide a life-critical energy safeguarding assessment in JSON:
   "utilityPriorityRegisterStep": "string (exact instruction for the family to register as a Medically Vulnerable Customer with ${utilityName || 'the utility'} to receive priority restoration notices)"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateWithFallback({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
