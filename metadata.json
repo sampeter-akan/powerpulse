@@ -1,0 +1,6 @@
+{
+  "name": "PowerPulse - Household Energy Companion",
+  "description": "IDEO-inspired human-centered household energy companion predicting prepaid electricity runtime, safeguarding cold-chain health, and managing community power.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
