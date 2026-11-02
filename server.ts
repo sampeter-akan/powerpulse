@@ -1,5 +1,4 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -12,6 +11,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
+const isVercel = Boolean(process.env.VERCEL);
+const isProduction = process.env.NODE_ENV === 'production' || isVercel;
 
 // Increase limit for base64 camera image uploads
 app.use(express.json({ limit: '20mb' }));
@@ -346,8 +347,9 @@ Provide a life-critical energy safeguarding assessment in JSON:
   }
 });
 
-// Mount Vite middleware in development or serve static in production
-if (process.env.NODE_ENV !== 'production') {
+// Mount Vite middleware in local development, or serve static files in standalone Node production
+if (!isProduction && !isVercel) {
+  const { createServer: createViteServer } = await import('vite');
   const isHmrDisabled = process.env.DISABLE_HMR === 'true';
   const vite = await createViteServer({
     server: { 
@@ -359,14 +361,15 @@ if (process.env.NODE_ENV !== 'production') {
     appType: 'spa',
   });
   app.use(vite.middlewares);
-} else {
+} else if (!isVercel) {
   app.use(express.static(path.resolve(__dirname, 'dist')));
   app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
   });
 }
 
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+// Only start standalone HTTP server when not running in Vercel serverless functions
+if (!isVercel) {
   app.listen(port, '0.0.0.0', () => {
     console.log(`PowerPulse Global Utility Server listening on http://0.0.0.0:${port}`);
   });
